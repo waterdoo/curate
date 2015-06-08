@@ -14,6 +14,7 @@ var GuideVote = db.guideVote;
 var LinkVote = db.linkVote;
 var Comment = db.comment;
 var Category = db.category;
+var UserFavorites = db.userFavorites;
 var async = require('async');
 
 /**
@@ -55,26 +56,26 @@ var readGuides = function (req, res, next) {
 
 						guidesToSend.push(guideObj);
 						next();
-					})
+					});
 
 			}, function(err){
 				if (err) {
 					console.log('failed to find');
 				} else {
-					console.log("GUIDES: ", guidesToSend);
+					console.log('GUIDES: ', guidesToSend);
 					res.status(200).json({
 						guide: guidesToSend
 					});
 				}
 			}
-		)
+		);
 	})
 		.error(function(err) {
 			return next(err);
 		});
 
 	console.log('Guides successfully retrieved.');
-}
+};
 
 /**
  * GET /guide/user
@@ -130,14 +131,15 @@ var readIndividualGuide = function (req, res, next) {
 				});
 			}
 
-			individualGuide.title = guide.title;
-			individualGuide.description = guide.description;
-			individualGuide.sections = [];
-			individualGuide.userId = guide.userId;
-			individualGuide.userEmail = '';
-			individualGuide.category = '';
-			individualGuide.votes = 0;
-			individualGuide.comments = [];
+    individualGuide.title = guide.title;
+    individualGuide.description = guide.description;
+    individualGuide.favorited = null;
+    individualGuide.sections = [];
+    individualGuide.userId = guide.userId;
+    individualGuide.userEmail = '';
+    individualGuide.category = '';
+    individualGuide.votes = 0;
+    individualGuide.comments = [];
 
 			Section.findAll({ // find all sections of the guide
 				where: {
@@ -174,67 +176,89 @@ var readIndividualGuide = function (req, res, next) {
 									currentLink.linkDescription = link.description;
 									currentLink.contentTypes = link.type;
 									currentLink.linkDuration =link.duration;
-									currentLink.linkId = link.id
+									currentLink.linkId = link.id;
 
 									LinkVote.count({where: {
 										linkId: link.id
 									}
 									}).success(function(count){
 										currentLink.votes = count;
-									})
+									});
 
 									currentSection.links.push(currentLink);
 								});
 							});
 						individualGuide.sections.push(currentSection);
+      });
+    })
+    .then(function(sections) {
+      individualGuide.sections.forEach(function(section) {
+        CrowdLink.findAll({ // Find all crowdLinks of the section
+          where: {
+            sectionId: section.sectionId
+          }
+        })
+        .then(function(crowdLinks) {
+						console.log('Crowd Links: ', crowdLinks);
 
-					});
-				})
-				.then(function(sections) {
-					individualGuide.sections.forEach(function(section) {
-						CrowdLink.findAll({ // Find all crowdLinks of the section
-							where: {
-								sectionId: section.sectionId
-							}
-						})
-							.then(function(crowdLinks) {
-								console.log('Crowd Links: ', crowdLinks);
-								crowdLinks.forEach(function(crowdLink) {
-									var currentCrowdLink = {};
-									currentCrowdLink.linkTitle = crowdLink.title;
-									currentCrowdLink.url = crowdLink.url;
-									currentCrowdLink.votes = crowdLink.voteTotal;
-									currentCrowdLink.linkDescription = crowdLink.description;
-									currentCrowdLink.contentTypes = crowdLink.type;
-									currentCrowdLink.linkDuration =crowdLink.duration;
+          crowdLinks.forEach(function(crowdLink) {
+            var currentCrowdLink = {};
+						currentCrowdLink.linkTitle = crowdLink.title;
+						currentCrowdLink.url = crowdLink.url;
+						currentCrowdLink.votes = crowdLink.voteTotal;
+						currentCrowdLink.linkDescription = crowdLink.description;
+						currentCrowdLink.contentTypes = crowdLink.type;
+						currentCrowdLink.linkDuration =crowdLink.duration;
 
-									//LinkVote.findAll({
-									//  where: {
-									//    crowdLinkId: crowdLink.id
-									//  }
-									//})
-									//.then(function(crowdLinkVotes) {
-									//  var crowdLinkVoteTotal = 0;
-									//  crowdLinkVotes.forEach(function(crowdLinkVote) {
-									//    crowdLinkVoteTotal += crowdLinkVote.val;
-									//  });
-									//
-									//  currentCrowdLink.votes = crowdLinkVoteTotal;
-									//});
-									section.crowdLinks.push(currentCrowdLink);
-								});
-							});
-					});
-				})
-				.then(function() {
-					GuideVote.findAll({ // find all votes associated with the guide
-						where: {
-							guideId: guide.id
-						}
-					})
-						.then(function(guideVotes) {
-							var guideVoteTotal = 0;
-
+            //LinkVote.findAll({
+            //  where: {
+            //    crowdLinkId: crowdLink.id
+            //  }
+            //})
+            //.then(function(crowdLinkVotes) {
+            //  var crowdLinkVoteTotal = 0;
+            //  crowdLinkVotes.forEach(function(crowdLinkVote) {
+            //    crowdLinkVoteTotal += crowdLinkVote.val;
+            //  });
+						//
+            //  currentCrowdLink.votes = crowdLinkVoteTotal;
+            //});
+            section.crowdLinks.push(currentCrowdLink);
+          });
+        });
+      });
+    })
+    .then(function() {
+      // find out if user viewing the guide has it previously favorited
+      UserFavorites.find({
+        where: {
+          userId: req.headers.userId || 3
+        },
+        include: [
+          { model: Guide }
+        ]
+      })
+      .then(function(userFavorites) {
+        var exists = false;
+        if (userFavorites.guides) {
+          // check to see if any of the user's favorited guides
+          // match the guide we are currently returning
+          exists = userFavorites.guides.some(function(guide) {
+            // TODO: Check browser compatibility of parseInt
+            return Number.parseInt(guideId, 10) === guide.id;
+          });
+        }
+        individualGuide.favorited = exists;
+      });
+    })
+    .then(function() {
+      GuideVote.findAll({ // find all votes associated with the guide
+        where: {
+          guideId: guide.id
+        }
+      })
+      .then(function(guideVotes) {
+        var guideVoteTotal = 0;
 							for (var i = 0; i < guideVotes.length; i++) {
 								guideVoteTotal += guideVotes[i].val;
 							}
@@ -285,7 +309,7 @@ var readIndividualGuide = function (req, res, next) {
 								var currentComment = {};
 								currentComment.userId = comment.userId;
 								currentComment.message = comment.message;
-								currentComment.userEmail = 'Poop@gmail.com';
+								currentComment.userEmail = 'test@gmail.com';
 
 								individualGuide.comments.push(currentComment);
 							});
@@ -302,7 +326,7 @@ var readIndividualGuide = function (req, res, next) {
 								if (err) {
 									console.log('Failed to find User Emails');
 								} else {
-									console.log("Individual Guide: ", individualGuide);
+									console.log('Individual Guide: ', individualGuide);
 									res.status(200).json({
 										guide: individualGuide
 									});
@@ -322,28 +346,27 @@ var readIndividualGuide = function (req, res, next) {
  * @param comments ?
  */
 var createGuide = function(req, res, next) {
-	// add assert for requiring a title to the guide
-	var guideContract = {
-		title: 'How to learn Flux & React',
-		description: 'description stuff',
-		sections: [
-			{
-				title: 'react stuff',
-				description:'learn react',
-				links:
-					[
-						{title: 'react link',
-							url:'http://reactjs.com',
-							votes:null}
-					]
-			}
-		],
-		userId: 1, //passed from front end
-		category: 'recipes',
-		votes: null, //will be populated in read state
-		comments: null //will be populated in read state
-	};
-
+  // TODO: add assert for requiring a title to the guide
+  var guideContract = {
+    title: 'How to learn Flux & React',
+    description: 'description stuff',
+    sections: [
+      {
+        title: 'react stuff',
+        description:'learn react',
+        links:
+          [
+            {title: 'react link',
+            url:'http://reactjs.com',
+            votes:null}
+          ]
+      }
+    ],
+    userId: 1, //passed from front end
+    category: 'recipes',
+    votes: null, //will be populated in read state
+    comments: null //will be populated in read state
+  };
 	console.log('createGuide controller POST req.body', req.body);
 	guideContract = req.body;
 
@@ -375,7 +398,7 @@ var createGuide = function(req, res, next) {
 								duration: link.linkDuration,
 								sectionId: sectionId
 								//voteTotal: link.votes || 0
-							})
+							});
 						});
 					});
 			});
