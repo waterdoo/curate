@@ -14,11 +14,19 @@ var IndexComponent = React.createClass({
       /* jshint ignore:start */
       <DefaultLayout>
         <div className="main-container">
-          <div className="yeogurt-info">
-            <h1>≈skill.it!</h1>
-            <GuideList/>
+          <div className="homepage">
+          
+            <section className="cover">
+              <h1 className="title">Crowd-sourced Curriculums</h1>
+              <h2 className="description">Sign up and create your own learning path. Share it with the world 
+              and help others find the most effective material on the internet.</h2>
+            </section>
+
+            <section className="guide-list">
+              <GuideList/>
+            </section>
+
           </div>
-          <button className="guide-create" onClick={this.handleNewGuide}>Create New Guide</button>
         </div>
       </DefaultLayout>
       /* jshint ignore:end */
