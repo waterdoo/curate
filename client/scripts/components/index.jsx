@@ -9,31 +9,33 @@ var GuideList = require('./guide/guideList.jsx');
 var IndexComponent = React.createClass({
 
   render: function() {
+      // <div className="row">
+        // <div className="col s6">
 
     return (
       /* jshint ignore:start */
-      <DefaultLayout>
-        <div className="main-container">
-          <div className="homepage">
+          <DefaultLayout>
+            <div className="main-container">
+              <div className="homepage">
 
-            <section className="cover min-window-height">
-              <h1 className="title">Crowd-sourced Curriculums</h1>
-              <h2 className="description">Sign up and create your own learning path. Share it with the world
-                and help others find the most effective material on the internet.</h2>
-            </section>
+                <section className="cover min-window-height">
+                  <div className="col offset-s4">
+                    <h1 className="title">Crowd-sourced Curriculums</h1>
+                    <h2 className="description">Sign up and create your own learning path. Share it with the world and help others find the most effective material on the internet.</h2>
+                  </div>
+                </section>
 
-            <section className="guide-list">
-              <GuideList/>
-            </section>
+                <section className="guide-list col offset-s4">
+                  <GuideList/>
+                </section>
 
-          </div>
-        </div>
-      </DefaultLayout>
+              </div>
+            </div>
+          </DefaultLayout>
       /* jshint ignore:end */
     );
   },
 	handleNewGuide: function(e){
-
 		e.preventDefault();
 		routeActions.setRoute('/createguide');
 	}
